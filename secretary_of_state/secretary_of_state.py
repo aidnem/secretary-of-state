@@ -87,7 +87,7 @@ def render_table(rows: list[list[str]], combine: bool=False):
     for state in states_row:
         state_node = get_node_id(state)
         print(state_node + ":::state")
-        print(state_node + "([" + state + "])")
+        print(state_node + "([<font size=11>" + state + "])")
 
     for row in transition_rows:
         current_state = row[0]
