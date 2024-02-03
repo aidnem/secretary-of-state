@@ -1,0 +1,3 @@
+,IDLE,ACTIVE
+IDLE,default,action == ACTIVATE && enabled
+ACTIVE,timeout >= 500ms || action == DEACTIVATE,default
