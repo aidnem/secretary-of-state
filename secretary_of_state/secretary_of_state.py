@@ -33,69 +33,61 @@ def get_node_id(name: str = "") -> str:
 
     return new_node_id()
 
-def render_or(current_state: str, prev_node: str, next_state: str, condition: str, first: bool) -> str:
-    raise NotImplementedError("render_or() not implemeneted yet :(")
+def render_or(condition: str, in_node: str, out_true: str, out_false: str):
     conditions: list[str] = [c.strip() for c in condition.split('||')]
 
-    for condition in conditions:
-        condition_node = get_node_id()
-        print(condition_node + "{" + condition + "}")
+    for condition in conditions[:-1]:
+        print(in_node + '{"' + condition + '"}')
+        next_condition_node = get_node_id()
 
-        if first:
-            print(f"{prev_node} --> {condition_node}")
-            prev_node = condition_node
-            first = False
+        print(f"{in_node} -.->|true| {out_true}")
+        print(f"{in_node} -.->|false| {next_condition_node} ")
+        in_node = next_condition_node
 
-            continue
+    condition = conditions[-1]
+    print(in_node + '{"' + condition + '"}')
 
-        print(f"{prev_node} -.->|false| {condition_node}")
-        print(f"{prev_node} -.->|true| {next_state} ")
-        prev_node = condition_node
+    print(f"{in_node} -.->|true| {out_true}")
+    print(f"{in_node} -.->|false| {out_false} ")
 
-    print(f"{prev_node} -.->|true| {next_state}")
-
-    return prev_node
-
-def render_and(current_state: str, prev_node: str, next_state: str, condition: str, first: bool) -> str:
-    raise NotImplementedError("render_and() not implemeneted yet :(")
+def render_and(condition: str, in_node: str, out_true: str, out_false: str):
     conditions: list[str] = [c.strip() for c in condition.split('&&')]
 
-    original_node = prev_node
+    for condition in conditions[:-1]:
+        print(in_node + '{"' + condition + '"}')
+        next_condition_node = get_node_id()
 
-    for condition in conditions:
-        condition_node = get_node_id()
-        print(condition_node + "{" + condition + "}")
+        print(f"{in_node} -.->|true| {next_condition_node}")
+        print(f"{in_node} -.->|false| {out_false} ")
+        in_node = next_condition_node
 
-        if first:
-            print(f"{prev_node} --> {condition_node}")
-            prev_node = condition_node
-            first = False
+    condition = conditions[-1]
+    print(in_node + '{"' + condition + '"}')
 
-            continue
+    print(f"{in_node} -.->|true| {out_true}")
+    print(f"{in_node} -.->|false| {out_false} ")
 
-        print(f"{prev_node} -.->|true| {condition_node}")
-        print(f"{prev_node} -.->|false| {current_state} ")
-        prev_node = condition_node
-
-    print(f"{prev_node} -.->|true| {next_state}")
-
-    return prev_node
-
-def render_single(condition: str, in_node: str, out_true: str, out_false):
+def render_single(condition: str, in_node: str, out_true: str, out_false: str):
     print(in_node + '{"' + condition + '"}')
 
     print(f"{in_node} -.->|true| {out_true}")
     print(f"{in_node} -.->|false| {out_false}")
 
-NON_TRANSITIONS = ["default","Not allowed","TBD"]
+NON_TRANSITIONS = ['default', 'Not allowed', 'TBD']
 
-def render_table(rows: list[list[str]]):
+def render_table(rows: list[list[str]], combine: bool=False):
     states_row = rows[0][1:] # Chop off first, empty square
     transition_rows = rows[1:]
 
     print("```mermaid")
-    print("flowchart TB\n")
+    print("flowchart LR\n")
     print("classDef state font-size:40px,padding:10px\n")
+
+    # Annotate the states at the top to put them in the correct order
+    for state in states_row:
+        state_node = get_node_id(state)
+        print(state_node + ":::state")
+        print(state_node + "([" + state + "])")
 
     for row in transition_rows:
         current_state = row[0]
@@ -106,9 +98,6 @@ def render_table(rows: list[list[str]]):
                 num_transitions += 1
 
         current_transition = 0
-
-        print(current_state_node + ":::state")
-        print(current_state_node + "([" +  current_state + "])")
 
         if num_transitions > 0:
             in_node = get_node_id()
@@ -127,13 +116,15 @@ def render_table(rows: list[list[str]]):
                     # otherwise, create a new node for a new transition
                     out_node: str = get_node_id()
 
-                # if '||' in condition:
-                #     prev_node = render_or(current_state, prev_node, next_state_node, condition, first)
-                # elif '&&' in condition:
-                #     prev_node = render_and(current_state, prev_node, next_state_node, condition, first)
-                # else:
-                #     prev_node = render_single(current_state, prev_node, next_state_node, condition, first)
-                prev_node = render_single(condition, in_node, next_state_node, out_node)
+                if combine:
+                    # If combine, render compound conditions (&&/||) as one condition
+                    render_single(condition, in_node, next_state_node, out_node)
+                elif '||' in condition:
+                    render_or(condition, in_node, next_state_node, out_node)
+                elif '&&' in condition:
+                    render_and(condition, in_node, next_state_node, out_node)
+                else:
+                    render_single(condition, in_node, next_state_node, out_node)
 
                 in_node = out_node
 
@@ -145,6 +136,8 @@ def main():
         sys.exit(1)
 
     fp = sys.argv[1]
+
+    combine = '--combine' in sys.argv or '-c' in sys.argv;
 
     rows: list[list[str]] = []
     try:
@@ -159,4 +152,4 @@ def main():
     if len(rows) < 2:
         print(f"[ERROR] File must have at least 2 rows, found {rows}", file=sys.stderr)
 
-    render_table(rows)
+    render_table(rows, combine)
