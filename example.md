@@ -4,9 +4,9 @@ flowchart LR
 classDef state font-size:40px,padding:10px
 
 node0:::state
-node0([IDLE])
+node0([<font size=11>IDLE])
 node1:::state
-node1([ACTIVE])
+node1([<font size=11>ACTIVE])
 node0 --> node2
 node2{"action == ACTIVATE"}
 node2 -.->|true| node3
