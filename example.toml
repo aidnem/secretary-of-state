@@ -1,0 +1,18 @@
+Idle = [
+    { trigger = "StartWarmup", condition = "hasGamePiece()", destination = "Warmup" },
+    { trigger = "TestModeEntered", condition = "isScoringTestMode()", destination = "TestMode" },
+]
+
+TestMode = [
+    { trigger = "TestModeExitted", condition = "!isScoringTestMode()", destination = "Idle" },
+]
+
+Warmup = [
+    { trigger = "WarmupCancelled", destination = "Idle" },
+    { trigger = "WarmupReady", condition = "hasGamePiece() && warmupReady()", destination = "Score" },
+]
+
+Score = [
+    { trigger = "DoneScoring", destination = "Idle" },
+    { trigger = "WarmupCancelled", destination = "Idle" },
+]

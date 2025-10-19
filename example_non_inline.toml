@@ -1,0 +1,28 @@
+[[Idle]]
+trigger = "StartWarmup"
+condition = "hasGamePiece()"
+destination = "Warmup"
+[[Idle]]
+trigger = "TestModeEntered"
+condition = "isScoringTestMode()"
+destination = "TestMode"
+
+[[TestMode]]
+trigger = "TestModeExitted"
+condition = "!isScoringTestMode()"
+destination = "Idle"
+
+[[Warmup]]
+trigger = "WarmupCancelled"
+destination = "Idle"
+[[Warmup]]
+trigger = "WarmupReady"
+condition = "hasGamePiece() && warmupReady()"
+destination = "Score"
+
+[[Score]]
+trigger = "DoneScoring"
+destination = "Idle"
+[[Score]]
+trigger = "WarmupCancelled"
+destination = "Idle"
