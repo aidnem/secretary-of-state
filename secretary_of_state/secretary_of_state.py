@@ -1,192 +1,158 @@
-from dataclasses import dataclass
+"""
+A script to convert a description of a state machine into a mermaid flow diagram to display states
+and transitions in a human-readable format.
+"""
+
 import sys
-import csv
+import tomllib
+from typing import NotRequired, TypedDict
+
+import jsonschema
+
+from secretary_of_state import schema
+import secretary_of_state.unique_condition as uc
+
+
+class Transition(TypedDict):
+    """
+    Describes a state machine transition, which has a trigger, destination, and optionally a
+    condition
+    """
+
+    trigger: str
+    destination: str
+    condition: NotRequired[str]
+
+
+MachineDescription = dict[str, list[Transition]]
+"""Describes a state machine by mapping each state to a list of Transitions"""
+
 
 def usage():
-    print("secretary-of-state:")
-    print("\tconverts csv state machines to mermaid diagrams")
-    print("usage:")
-    print("\tsecretary [file]")
-    print("")
-    print("\t[file]: path to a csv file")
+    print("secretary-of-state:", file=sys.stderr)
+    print("\tconverts csv state machines to mermaid diagrams", file=sys.stderr)
+    print("usage:", file=sys.stderr)
+    print("\tsecretary [file]", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("\t[file]: path to a toml file", file=sys.stderr)
 
-iota: int = -1
-node_map: dict[str, str] = {}
 
-def new_node_id() -> str:
-    global iota
+def separate_chains(
+    transitions: list[Transition],
+) -> tuple[dict[str, list[Transition]], list[Transition]]:
+    """
+    Separate a list of transitions into "chains" (a mapping of each trigger to a list of what
+    transitions it can cause and in which order they are checked) and non-chains (triggers with
+    only one transition)
+    """
+    chains: dict[str, list[Transition]] = {}
+    non_chains: list[Transition] = []
 
-    iota += 1
-
-    # if f"node{iota}" == 'node6':
-    #     raise Exception("OOPSIE POOPSIE!")
-    return f"node{iota}"
-
-def get_node_id(name: str = "") -> str:
-    """Get a unique node id"""
-    global node_map
-
-    if len(name):
-        if name not in node_map:
-            node_map[name] = new_node_id()
-        return node_map[name]
-
-    return new_node_id()
-
-def render_or(condition: str, in_node: str, out_true: str, out_false: str):
-    conditions: list[str] = [c.strip() for c in condition.split('||')]
-
-    for condition in conditions[:-1]:
-        print(in_node + '{"' + condition + '"}')
-        next_condition_node = get_node_id()
-
-        print(f"{in_node} -.->|true| {out_true}")
-        print(f"{in_node} -.->|false| {next_condition_node} ")
-        in_node = next_condition_node
-
-    condition = conditions[-1]
-    print(in_node + '{"' + condition + '"}')
-
-    print(f"{in_node} -.->|true| {out_true}")
-    print(f"{in_node} -.->|false| {out_false} ")
-
-def render_and(condition: str, in_node: str, out_true: str, out_false: str):
-    conditions: list[str] = [c.strip() for c in condition.split('&&')]
-
-    for condition in conditions[:-1]:
-        print(in_node + '{"' + condition + '"}')
-        next_condition_node = get_node_id()
-
-        print(f"{in_node} -.->|true| {next_condition_node}")
-        print(f"{in_node} -.->|false| {out_false} ")
-        in_node = next_condition_node
-
-    condition = conditions[-1]
-    print(in_node + '{"' + condition + '"}')
-
-    print(f"{in_node} -.->|true| {out_true}")
-    print(f"{in_node} -.->|false| {out_false} ")
-
-def render_single(condition: str, in_node: str, out_true: str, out_false: str):
-    print(in_node + '{"' + condition + '"}')
-
-    print(f"{in_node} -.->|true| {out_true}")
-    print(f"{in_node} -.->|false| {out_false}")
-
-def render_one_check(row: list[str], states_row: list[str], in_node: str):
-    for i, condition in enumerate(row[1:]):
-        if condition in NON_TRANSITIONS:
-            continue
-        next_state = states_row[i]
-        next_state_node = get_node_id(next_state)
-
-        if condition.startswith('!'):
-            print(f"{in_node} -.->|false| {next_state_node}")
+    # First, move through the entire list of transitions and track which have been seen
+    for transition in transitions:
+        if (trigger := transition["trigger"]) in chains:
+            chains[trigger].append(transition)
         else:
-            print(in_node + '{"' + condition + '"}')
-            print(f"{in_node} -.->|true| {next_state_node}")
+            chains[trigger] = [transition]
 
-NON_TRANSITIONS = ['default', 'Not allowed', 'TBD']
+    to_delete: set[str] = set()
+    # Next, move all triggers that have only one transition to non_chains
+    for trigger, transitions in chains.items():
+        if len(transitions) == 1:
+            to_delete.add(trigger)
+            non_chains.append(transitions[0])
 
-def is_one_check(row: list[str]) -> bool:
-    condition = ""
-    found_true = False
-    found_false = False
+    for trigger in to_delete:
+        del chains[trigger]
 
-    for transition in row[1:]:
-        if transition in NON_TRANSITIONS:
-            continue
-        if transition.startswith("!"):
-            if found_false:
-                # We've already found one condition starting with `!`
-                # This means this row can't be one check
-                return False
-            elif found_true:
-                if transition[1:] == condition:
-                    found_false = True
-                else:
-                    # The `!...` condition doesn't match the `...` condition
-                    # Can't be one check
-                    return False
-            else:
-                found_false = True
-                condition = transition[1:]
-        else:
-            if found_true:
-                # We've already found one condition not starting with `!`
-                # This means this row can't be one check
-                return False
-            elif found_false:
-                if transition == condition:
-                    found_true = True
-                else:
-                    # The `!...` condition doesn't match the `...` condition
-                    # Can't be one check
-                    return False
-            else:
-                found_true = True
-                condition = transition
+    return chains, non_chains
 
-    # If we found both a true and false without duplicates, it must be a one check
-    return found_true and found_false
 
-def render_table(rows: list[list[str]], combine: bool=False):
-    states_row = rows[0][1:] # Chop off first, empty square
-    transition_rows = rows[1:]
+def render_chain(
+    context: uc.ConditionContext,
+    trigger: str,
+    transitions: list[Transition],
+):
+    """
+    Render a chain of conditional transitions starting from a state
+    """
+    assert (
+        len(transitions) >= 2
+    ), 'Less than 2 transition "chain" made it to render_chain,'
 
+    assert (
+        "condition" in transitions[0]
+    ), "First transition in chain must have a condition"
+
+    last_node: str = context.node(transitions[0]["condition"])
+    print(f"    {context.get_state()} -->|{trigger}| {last_node}")
+    print(f"    {last_node} -.->|true| {transitions[0]['destination']}")
+
+    for transition in transitions[1:-1]:
+        assert (
+            "condition" in transition
+        ), "Non-last transition in chain must have a condition"
+        next_node: str = context.node(transition["condition"])
+
+        print(f"    {last_node} -.->|false| {next_node}")
+        print(f"    {next_node} -.->|true| {transition['destination']}")
+
+        last_node = next_node
+
+    transition = transitions[-1]
+    final_node: str
+    if "condition" in transition:
+        final_node = context.node(transition["condition"])
+        print(f"    {final_node} -.->|true| {transition['destination']}")
+    else:
+        final_node = transition["destination"]
+
+    print(f"    {last_node} -.->|false| {final_node}")
+
+
+def render_non_chain(context: uc.ConditionContext, transition: Transition):
+    """
+    Render a non-chain (single transition) to stdout
+    """
+
+    if "condition" in transition:
+        cond_node = context.node(transition["condition"])
+        print(f"    {context.get_state()} -->|{transition['trigger']}| {cond_node}")
+
+        print(f"    {cond_node} -.->|true| {transition['destination']}")
+    else:
+        print(
+            f"    {context.get_state()} -->|{transition['trigger']}| {transition['destination']}"
+        )
+
+
+def render_state(state: str, transitions: list[Transition]):
+    """
+    Render a node for the state as well as the edges coming out of said state
+    """
+    # First, break up transitions into "chains" (sets of transitions that share one trigger but have different conditions) and non-chains
+    chains, non_chains = separate_chains(transitions)
+
+    context: uc.ConditionContext = uc.ConditionContext(state)
+
+    for trigger, chain in chains.items():
+        render_chain(context, trigger, chain)
+
+    for transition in non_chains:
+        render_non_chain(context, transition)
+
+
+def render_machine(state_machine: MachineDescription):
+    """
+    Render all states in a state machine to a markdown diagram printed to stdout
+    """
     print("```mermaid")
     print("flowchart LR\n")
     print("classDef state font-size:40px,padding:10px\n")
-
-    # Annotate the states at the top to put them in the correct order
-    for state in states_row:
-        state_node = get_node_id(state)
-        print(state_node + ":::state")
-        print(state_node + "([<font size=11>" + state + "])")
-
-    for row in transition_rows:
-        current_state = row[0]
-        current_state_node = get_node_id(current_state)
-        num_transitions: int = 0
-        for condition in row[1:]:
-            if condition not in NON_TRANSITIONS:
-                num_transitions += 1
-
-        current_transition = 0
-
-        if num_transitions > 0:
-            in_node = get_node_id()
-            print(f"{current_state_node} --> {in_node}")
-            if is_one_check(row):
-                render_one_check(row, states_row, in_node)
-                continue
-            for i, condition in enumerate(row[1:]):
-                if condition in NON_TRANSITIONS:
-                    continue
-                current_transition += 1
-                next_state = states_row[i]
-                next_state_node = get_node_id(next_state)
-
-                if current_transition == num_transitions:
-                    # Last transition, return to current state if false
-                    out_node: str = current_state_node
-                else:
-                    # otherwise, create a new node for a new transition
-                    out_node: str = get_node_id()
-
-                if combine:
-                    # If combine, render compound conditions (&&/||) as one condition
-                    render_single(condition, in_node, next_state_node, out_node)
-                elif '||' in condition:
-                    render_or(condition, in_node, next_state_node, out_node)
-                elif '&&' in condition:
-                    render_and(condition, in_node, next_state_node, out_node)
-                else:
-                    render_single(condition, in_node, next_state_node, out_node)
-
-                in_node = out_node
-
+    for state in state_machine:
+        render_state(state, state_machine[state])
     print("```")
+
 
 def main():
     if len(sys.argv) < 2:
@@ -195,19 +161,14 @@ def main():
 
     fp = sys.argv[1]
 
-    combine = '--combine' in sys.argv or '-c' in sys.argv;
-
-    rows: list[list[str]] = []
+    machine_description: MachineDescription = {}
     try:
-        with open(fp, newline='') as csvfile:
-            csvreader = csv.reader(csvfile, delimiter=',', quotechar='"')
-            for row in csvreader:
-                rows.append(row)
+        with open(fp, "rb") as tomlfile:
+            machine_description = tomllib.load(tomlfile)
     except FileNotFoundError:
         print(f"[ERROR] File {fp} not found! Does the file exist?", file=sys.stderr)
         sys.exit(1)
 
-    if len(rows) < 2:
-        print(f"[ERROR] File must have at least 2 rows, found {rows}", file=sys.stderr)
+    jsonschema.validate(instance=machine_description, schema=schema.SCHEMA)
 
-    render_table(rows, combine)
+    render_machine(machine_description)
