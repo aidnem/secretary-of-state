@@ -4,28 +4,14 @@ and transitions in a human-readable format.
 """
 
 import sys
-import tomllib
-from typing import NotRequired, TypedDict
 
 import jsonschema
 
 from secretary_of_state import schema
+from secretary_of_state.loaders.loader_factory import create_loader
+from secretary_of_state.machine_description import MachineDescription, Transition
 import secretary_of_state.unique_condition as uc
-
-
-class Transition(TypedDict):
-    """
-    Describes a state machine transition, which has a trigger, destination, and optionally a
-    condition
-    """
-
-    trigger: str
-    destination: str
-    condition: NotRequired[str]
-
-
-MachineDescription = dict[str, list[Transition]]
-"""Describes a state machine by mapping each state to a list of Transitions"""
+from secretary_of_state.loaders.base_loader import BaseLoader
 
 
 def usage():
@@ -155,19 +141,20 @@ def render_machine(state_machine: MachineDescription):
 
 
 def main():
+    """
+    Main entry point for the script. Takes a filename as the only argument and prints the markdown
+    to stdout.
+    """
+
     if len(sys.argv) < 2:
         usage()
         sys.exit(1)
 
     fp = sys.argv[1]
 
-    machine_description: MachineDescription = {}
-    try:
-        with open(fp, "rb") as tomlfile:
-            machine_description = tomllib.load(tomlfile)
-    except FileNotFoundError:
-        print(f"[ERROR] File {fp} not found! Does the file exist?", file=sys.stderr)
-        sys.exit(1)
+    loader: BaseLoader = create_loader(fp)
+
+    machine_description: MachineDescription = loader.load()
 
     jsonschema.validate(instance=machine_description, schema=schema.SCHEMA)
 
