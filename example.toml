@@ -1,3 +1,9 @@
+Init = [
+    { trigger = "Homed", condition = "!isScoringTestMode()", destination = "Idle" },
+    { trigger = "Homed", condition = "isScoringTestMode()", destination = "TestMode" },
+    { trigger = "ForceInit", destination = "Idle" },
+]
+
 Idle = [
     { trigger = "StartWarmup", condition = "hasGamePiece()", destination = "Warmup" },
     { trigger = "TestModeEntered", condition = "isScoringTestMode()", destination = "TestMode" },
@@ -13,6 +19,6 @@ Warmup = [
 ]
 
 Score = [
-    { trigger = "DoneScoring", destination = "Idle" },
+    { trigger = "DoneScoring", condition = "!hasGamePiece()", destination = "Idle" },
     { trigger = "WarmupCancelled", destination = "Idle" },
 ]

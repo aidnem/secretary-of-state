@@ -1,0 +1,11 @@
+StateWithChains = [
+    { trigger = "MultipleOutComes", condition = "shouldIdle()", destination = "Idle" },
+    { trigger = "MultipleOutComes", condition = "shouldWarmUp()", destination = "WarmUp" },
+    { trigger = "MultipleOutComes", destination = "Limbo" },
+]
+
+Limbo = [{ trigger = "ExitLimbo", destination = "Idle" }]
+
+Idle = [{ trigger = "StartWarmUp", destination = "WarmUp" }]
+
+WarmUp = [{ trigger = "Scored", destination = "Idle" }]

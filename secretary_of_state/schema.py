@@ -1,6 +1,10 @@
 # JsonSchema definition for machine description validation
 
-SCHEMA = {
+
+from typing import Any
+
+
+SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "title": "MachineDescription",
