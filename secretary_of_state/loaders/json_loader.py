@@ -1,8 +1,8 @@
 """
-Contains a loader to load MachineDescriptions from toml files
+Contains a loader to load a config from a JSON file
 """
 
-import tomllib
+import json
 from attr import define
 
 from secretary_of_state.loaders.base_loader import BaseLoader
@@ -10,10 +10,10 @@ from secretary_of_state.machine_description import MachineDescription
 
 
 @define
-class TomlLoader(BaseLoader):
+class JsonLoader(BaseLoader):
     """
-    Loads a config from a TOML file
+    Loads a config from a JSON file
     """
 
     def load(self) -> MachineDescription:
-        return self.load_if_present(tomllib.load)
+        return self.load_if_present(json.load)

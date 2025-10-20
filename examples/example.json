@@ -1,0 +1,26 @@
+{
+    "Idle": [
+        {
+            "trigger": "StartWarmup",
+            "condition": "hasGamePiece()",
+            "destination": "WarmUp"
+        }
+    ],
+    "WarmUp": [
+        {
+            "trigger": "CancelWarmup",
+            "destination": "Idle"
+        },
+        {
+            "trigger": "WarmupReady",
+            "destination": "Score"
+        }
+    ],
+    "Score": [
+        {
+            "trigger": "Scored",
+            "condition": "!hasGamePiece()",
+            "destination": "Idle"
+        }
+    ]
+}
