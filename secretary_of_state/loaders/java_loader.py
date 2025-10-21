@@ -3,6 +3,7 @@ import tomllib
 from attr import define
 
 import re
+import regex
 
 from secretary_of_state.loaders.base_loader import BaseLoader
 from secretary_of_state.machine_description import MachineDescription
@@ -77,12 +78,28 @@ class JavaLoader(BaseLoader):
             r"\.permit\((\w*?),\r?\n?\s*(\w*)\)", r".permit(\1, \2)", config_str
         )
 
-        config_str = re.sub(
-            r"\.permitIf\(\r?\n?\s*(\S*),\r?\n?\s*(\S*)\,\r?\n?\s*(.*)\r?\n?\)(;?)[\r\n]+",
-            r".permitIf(\1, \2, \3)\4\n",
+        config_str = regex.sub(
+            r"\.permitIf\(\r?\n?\s*(\S*),\r?\n?\s*(\S*)\,\r?\n?\s*((?:[^()]|(?:\((?3)\)))*)\r?\n?\)(;?)[\r\n]+",
+            r".permitIf(\1, \2, <START_SECRETARY_CONDITION>\3<END_SECRETARY_CONDITION>)\4\n",
             config_str,
             flags=re.MULTILINE,
         )
+
+        # Remove newlines from between the SECRETARY_CONDITION tags
+        while (
+            maybe_match := re.search(
+                "<START_SECRETARY_CONDITION>.*?<END_SECRETARY_CONDITION>",
+                config_str,
+                flags=re.DOTALL,
+            )
+        ) is not None:
+            new_text = maybe_match.group(0)
+            new_text = new_text.replace("\r", "")
+            new_text = new_text.replace("\n", "")
+            new_text = re.sub(r"\s+", " ", new_text)
+            new_text = new_text.replace("<START_SECRETARY_CONDITION>", "")
+            new_text = new_text.replace("<END_SECRETARY_CONDITION>", "")
+            config_str = config_str.replace(maybe_match.group(0), new_text)
 
         # Flatten all indenting
         config_str = re.sub(r"^\s*(\S)", r"\1", config_str, flags=re.MULTILINE)
