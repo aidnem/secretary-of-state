@@ -1,0 +1,18 @@
+Init = [
+    { trigger = "DoAction", condition = "hasMultipleGamePieces()", destination = "Eject" },
+    { trigger = "DoAction", condition = "hasGamePiece()", destination = "Score" },
+    { trigger = "DoAction", destination = "Intake" },
+]
+
+Eject = [
+    { trigger = "Ejected", condition = "!hasMultipleGamePieces()", destination = "Idle" },
+]
+
+Score = [
+    { trigger = "Scored", condition = "!hasGamePiece()", destination = "Idle" },
+]
+
+Intake = [
+    { trigger = "Intaked", condition = "hasGamePiece()", destination = "Idle" },
+    { trigger = "CancelIntake", destination = "Idle" },
+]
