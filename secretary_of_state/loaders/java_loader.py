@@ -122,4 +122,7 @@ class JavaLoader(BaseLoader):
             flags=re.MULTILINE,
         )
 
+        # Remove the leading `() ->` from conditional transitions
+        config_str = config_str.replace('condition = "() -> ', 'condition = "')
+
         return tomllib.loads(config_str)
